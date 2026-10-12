@@ -401,8 +401,12 @@ def cmd_download(args: argparse.Namespace) -> None:
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    safe_title = song["title"].replace("/", "_").replace("\\", "_").replace(":", "_")
+    safe_artist = song["singer"].replace("/", "_").replace("\\", "_").replace(":", "_")
+    filename_stem = f"{safe_title} - {safe_artist}"
+
     if args.quality == "flac" and info["ekey"]:
-        tmp_path = output_dir / f"{song['title']} - {song['singer']}.mflac"
+        tmp_path = output_dir / f"{filename_stem}.mflac"
         print(f"  Fetching encrypted file...", file=sys.stderr)
 
         def progress(downloaded, total):
@@ -455,7 +459,7 @@ def cmd_download(args: argparse.Namespace) -> None:
             print(f"  FLAC decrypt failed, falling back to 320k MP3...", file=sys.stderr)
             info_320 = get_download_info(song["song_mid"], song["media_mid"], "320", cookie, uin)
             if info_320 and not info_320.get("ekey"):
-                out_path = output_dir / f"{song['title']} - {song['singer']}.mp3"
+                out_path = output_dir / f"{filename_stem}.mp3"
                 ok = download_file(info_320["url"], out_path, callback=progress)
                 print("", file=sys.stderr)
                 if ok:
@@ -478,7 +482,7 @@ def cmd_download(args: argparse.Namespace) -> None:
                 sys.exit(1)
     else:
         ext = ".mp3" if args.quality in ("320", "128") else ".flac"
-        out_path = output_dir / f"{song['title']} - {song['singer']}{ext}"
+        out_path = output_dir / f"{filename_stem}{ext}"
         print(f"  Downloading directly...", file=sys.stderr)
 
         def progress(downloaded, total):
