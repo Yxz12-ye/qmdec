@@ -2,13 +2,16 @@
 
 import ctypes
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 _lib = None
 _CSRC = Path(__file__).parent / "csrc" / "qmc2_fast.c"
-_SO_CACHE = Path(__file__).parent / "csrc" / "libqmc2fast.so"
+_SO_CACHE = Path(__file__).parent / "csrc" / (
+    "qmc2fast.dll" if os.name == "nt" else "libqmc2fast.so"
+)
 
 
 def _build_lib() -> Path | None:
@@ -16,14 +19,29 @@ def _build_lib() -> Path | None:
         return _SO_CACHE
     if not _CSRC.exists():
         return None
-    try:
-        subprocess.run(
-            ["gcc", "-O3", "-shared", "-fPIC", "-lm", "-o", str(_SO_CACHE), str(_CSRC)],
-            check=True, capture_output=True,
-        )
-        return _SO_CACHE
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return None
+    if os.name == "nt":
+        commands = []
+        if clang := shutil.which("clang"):
+            commands.append([
+                clang, "-O3", "-shared", "-o", str(_SO_CACHE), str(_CSRC),
+                "-Wl,/EXPORT:qmc2_decrypt",
+            ])
+        commands.append([
+            "cl", "/nologo", "/O2", "/LD", str(_CSRC), f"/Fe:{_SO_CACHE}",
+            "/link", "/EXPORT:qmc2_decrypt",
+        ])
+    else:
+        commands = [[
+            "gcc", "-O3", "-shared", "-fPIC", "-lm", "-o",
+            str(_SO_CACHE), str(_CSRC),
+        ]]
+    for command in commands:
+        try:
+            subprocess.run(command, check=True, capture_output=True)
+            return _SO_CACHE
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass
+    return None
 
 
 def _load_lib():
